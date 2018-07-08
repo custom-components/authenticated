@@ -9,10 +9,14 @@ import requests
 import yaml
 from homeassistant.helpers.entity import Entity
 
+ATTR_COUNTRY = 'country'
+ATTR_REGION = 'region'
+ATTR_CITY = 'city'
+
 SCAN_INTERVAL = timedelta(seconds=30)
 
 PLATFORM_NAME = 'authenticated'
-PLATFORM_VERSION = '0.0.1'
+PLATFORM_VERSION = '0.0.2'
 
 LOGFILE = 'home-assistant.log'
 OUTFILE = '.ip_authenticated.yaml'
@@ -31,6 +35,9 @@ class Authenticated(Entity):
     def __init__(self, hass, log, out):
         """Initialize the sensor."""
         self._state = None
+        self._country = None
+        self._region = None
+        self._city = None
         self._log = log
         self._out = out
         self.hass = hass
@@ -60,7 +67,8 @@ class Authenticated(Entity):
             geo_region = geo['region']
             geo_city = geo['city']
         self.write_file(ip_address, access_time, geo_country, geo_region, geo_city)
-        self.hass.components.persistent_notification.create('From {}'.format(ip_address), 'New successful login')
+        self.hass.components.persistent_notification.create('{}'.format(ip_address
+            + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
 
     def update_ip(self, ip_address, access_time):
         """If we know this IP"""
@@ -111,6 +119,11 @@ class Authenticated(Entity):
             else:
                 self.first_ip(ip_address, access_time)
             self._state = ip_address
+            stream = open(self._out, 'r')
+            geo_info = yaml.load(stream)
+            self._country = geo_info[ip_address]['country']
+            self._region = geo_info[ip_address]['region']
+            self._city = geo_info[ip_address]['city']
 
     @property
     def name(self):
@@ -126,3 +139,12 @@ class Authenticated(Entity):
     def icon(self):
         """Return the icon of the sensor."""
         return 'mdi:security-lock'
+
+    @property
+    def device_state_attributes(self):
+        """Return attributes for the sensor."""
+        return {
+            ATTR_COUNTRY: self._country,
+            ATTR_REGION: self._region,
+            ATTR_CITY: self._city,
+        }
