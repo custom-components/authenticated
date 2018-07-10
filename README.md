@@ -1,6 +1,6 @@
 # sensor.authenticated
   
-[![Version](https://img.shields.io/badge/version-0.0.2-green.svg?style=for-the-badge)](#) [![mantained](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge)](#) [![maintainer](https://img.shields.io/badge/maintainer-Joakim%20Sørensen%20%40ludeeus-blue.svg?style=for-the-badge)](#)\
+[![Version](https://img.shields.io/badge/version-0.0.3-green.svg?style=for-the-badge)](#) [![mantained](https://img.shields.io/maintenance/yes/2018.svg?style=for-the-badge)](#) [![maintainer](https://img.shields.io/badge/maintainer-Joakim%20Sørensen%20%40ludeeus-blue.svg?style=for-the-badge)](#)\
 A platform which allows you to get information sucessfull logins to Home Assistant.
   
 To get started put `/custom_components/sensor/authenticated.py` here:  
@@ -11,13 +11,15 @@ To get started put `/custom_components/sensor/authenticated.py` here:
 ```yaml
 sensor:
   platform: authenticated
+  enable_notification: 'True'
 ```
 
 **Configuration variables:**
 
 key | description  
 :--- | :---  
-**platform (Required)** | The sensor platform name.  
+**platform (Required)** | The sensor platform name.
+**enable_notification (Optional)** | Turn on/off `persistant_notifications` when a new IP is detected, can be `True`/`False` defaults to `True`.
   
 **Sample overview:**\
 ![Sample overview](/img/overview.png)
@@ -25,5 +27,5 @@ key | description
 If a new IP is detected, it will be added to a `.ip_authenticated.yaml` file in your configdir, with this information:\
 ![fileexample](/img/yamlfile.png)
 
-You will also be presented with a `persistant_notification` about the event:\
+If not disabled, you will also be presented with a `persistant_notification` about the event:\
 ![notification](/img/persistant_notification.png)

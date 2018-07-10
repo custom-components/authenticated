@@ -5,9 +5,20 @@ https://github.com/custom-components/sensor.authenticated
 """
 from datetime import timedelta
 from pathlib import Path
+import logging
 import requests
+
+import voluptuous as vol
 import yaml
+import homeassistant.helpers.config_validation as cv
+from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
+
+__version__ = '0.0.3'
+
+_LOGGER = logging.getLogger(__name__)
+
+CONF_NOTIFY = 'enable_notification'
 
 ATTR_COUNTRY = 'country'
 ATTR_REGION = 'region'
@@ -16,28 +27,34 @@ ATTR_CITY = 'city'
 SCAN_INTERVAL = timedelta(seconds=30)
 
 PLATFORM_NAME = 'authenticated'
-PLATFORM_VERSION = '0.0.2'
 
 LOGFILE = 'home-assistant.log'
 OUTFILE = '.ip_authenticated.yaml'
 
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Optional(CONF_NOTIFY, default='True'): cv.string,
+})
+
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Create the sensor"""
+    notify = config.get(CONF_NOTIFY)
     logs = {'homeassistant.components.http.view': 'info'}
     hass.services.call('logger', 'set_level', logs)
     log = str(hass.config.path(LOGFILE))
     out = str(hass.config.path(OUTFILE))
-    add_devices([Authenticated(hass, log, out)])
+    add_devices([Authenticated(hass, notify, log, out)])
 
 class Authenticated(Entity):
     """Representation of a Sensor."""
 
-    def __init__(self, hass, log, out):
+    def __init__(self, hass, notify, log, out):
         """Initialize the sensor."""
+        _LOGGER.info('version %s is starting, if you have ANY issues with this, please report them here: https://github.com/custom-components/%s', __version__, __name__.split('.')[1] + '.' + __name__.split('.')[2])
         self._state = None
         self._country = None
         self._region = None
         self._city = None
+        self._notify = notify
         self._log = log
         self._out = out
         self.hass = hass
@@ -45,12 +62,14 @@ class Authenticated(Entity):
 
     def first_ip(self, ip_address, access_time):
         """If the IP is the first"""
+        _LOGGER.debug('First IP, creating file...')
         with open(self._out, 'a') as the_file:
             the_file.write(ip_address + ':')
         self.new_ip(ip_address, access_time)
 
     def new_ip(self, ip_address, access_time):
         """If the IP is new"""
+        _LOGGER.debug('Found new IP %s', ip_address)
         fetchurl = 'https://ipapi.co/' + ip_address + '/json/'
         try:
             geo = requests.get(fetchurl, timeout=5).json()
@@ -59,6 +78,7 @@ class Authenticated(Entity):
         else:
             geo = geo
         if 'reserved' in geo:
+            _LOGGER.debug('The IP is reserved, no GEO info available...')
             geo_country = 'none'
             geo_region = 'none'
             geo_city = 'none'
@@ -67,11 +87,14 @@ class Authenticated(Entity):
             geo_region = geo['region']
             geo_city = geo['city']
         self.write_file(ip_address, access_time, geo_country, geo_region, geo_city)
-        self.hass.components.persistent_notification.create('{}'.format(ip_address
-            + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
+        if self._notify == 'True':
+            self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
+        else:
+            _LOGGER.debug('persistent_notifications is disabled in config, enable_notification=%s', self._notify)
 
     def update_ip(self, ip_address, access_time):
         """If we know this IP"""
+        _LOGGER.debug('Found known IP %s, updating access_timestamp.', ip_address)
         with open(self._out) as f:
             doc = yaml.load(f)
 
@@ -105,11 +128,11 @@ class Authenticated(Entity):
                     get_ip = line
                     break
         if get_ip is None:
+            _LOGGER.debug('No IP Addresses found in the log...')
             self._state = None
         else:
             ip_address = get_ip.split(' ')[8]
             access_time = get_ip.split(' ')[0] + ' ' + get_ip.split(' ')[1]
-
             checkpath = Path(self._out)
             if checkpath.exists():
                 if str(ip_address) in open(self._out).read():
