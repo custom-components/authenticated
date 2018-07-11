@@ -14,7 +14,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class Authenticated(Entity):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return 'Last sucessfull authentication'
+        return 'Last successful authentication'
 
     @property
     def state(self):
