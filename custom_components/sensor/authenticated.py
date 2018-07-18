@@ -14,7 +14,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     """Create the sensor"""
     notify = config.get(CONF_NOTIFY)
     logs = {'homeassistant.components.http.view': 'info'}
+    _LOGGER.debug('Making sure the logger is correct set.')
     hass.services.call('logger', 'set_level', logs)
     log = str(hass.config.path(LOGFILE))
     out = str(hass.config.path(OUTFILE))
@@ -66,6 +67,7 @@ class Authenticated(Entity):
         with open(self._out, 'a') as the_file:
             the_file.write(ip_address + ':')
         self.new_ip(ip_address, access_time)
+        the_file.close()
 
     def new_ip(self, ip_address, access_time):
         """If the IP is new"""
@@ -97,16 +99,19 @@ class Authenticated(Entity):
         _LOGGER.debug('Found known IP %s, updating access_timestamp.', ip_address)
         with open(self._out) as f:
             doc = yaml.load(f)
+        f.close()
 
         doc[ip_address]['last_authenticated'] = access_time
 
         with open(self._out, 'w') as f:
             yaml.dump(doc, f, default_flow_style=False)
+        f.close()
 
     def write_file(self, ip_address, access_time, country='none', region='none', city='none'):
         """Writes info to out control file"""
         with open(self._out) as f:
             doc = yaml.load(f)
+        f.close()
 
         doc[ip_address] = dict(
             last_authenticated=access_time,
@@ -117,7 +122,7 @@ class Authenticated(Entity):
 
         with open(self._out, 'w') as f:
             yaml.dump(doc, f, default_flow_style=False)
-
+        f.close()
 
     def update(self):
         """Method to update sensor value"""
