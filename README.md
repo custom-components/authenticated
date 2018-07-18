@@ -28,3 +28,14 @@ If a new IP is detected, it will be added to a `.ip_authenticated.yaml` file in 
 
 If not disabled, you will also be presented with a `persistant_notification` about the event:\
 ![notification](/img/persistant_notification.png)
+
+## Debug logging
+
+In your `configuration.yaml`
+
+```yaml
+logger:
+  default: warn
+  logs:
+    custom_components.sensor.authenticated: debug
+```
