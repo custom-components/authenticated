@@ -23,6 +23,8 @@ CONF_NOTIFY = 'enable_notification'
 ATTR_COUNTRY = 'country'
 ATTR_REGION = 'region'
 ATTR_CITY = 'city'
+ATTR_LAST_AUTHENTICATE_TIME = 'last_authenticated_time'
+ATTR_PREVIOUS_AUTHENTICATE_TIME = 'previous_authenticated_time'
 
 SCAN_INTERVAL = timedelta(seconds=30)
 
@@ -55,6 +57,8 @@ class Authenticated(Entity):
         self._country = None
         self._region = None
         self._city = None
+        self._last_authenticated_time = None
+        self._previous_authenticated_time = None
         self._notify = notify
         self._log = log
         self._out = out
@@ -79,7 +83,7 @@ class Authenticated(Entity):
             geo = 'none'
         else:
             geo = geo
-        if 'reserved' in geo:
+        if 'reserved' in geo or geo['error']:
             _LOGGER.debug('The IP is reserved, no GEO info available...')
             geo_country = 'none'
             geo_region = 'none'
@@ -96,11 +100,12 @@ class Authenticated(Entity):
 
     def update_ip(self, ip_address, access_time):
         """If we know this IP"""
-        _LOGGER.debug('Found known IP %s, updating access_timestamp.', ip_address)
+        _LOGGER.debug('Found known IP %s, updating timestamps.', ip_address)
         with open(self._out) as f:
             doc = yaml.load(f)
         f.close()
 
+        doc[ip_address]['previous_authenticated_time'] = doc[ip_address]['last_authenticated']
         doc[ip_address]['last_authenticated'] = access_time
 
         with open(self._out, 'w') as f:
@@ -115,6 +120,7 @@ class Authenticated(Entity):
 
         doc[ip_address] = dict(
             last_authenticated=access_time,
+            previous_authenticated_time='none',
             country=country,
             region=region,
             city=city
@@ -152,6 +158,8 @@ class Authenticated(Entity):
             self._country = geo_info[ip_address]['country']
             self._region = geo_info[ip_address]['region']
             self._city = geo_info[ip_address]['city']
+            self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
+            self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
 
     @property
     def name(self):
@@ -175,4 +183,6 @@ class Authenticated(Entity):
             ATTR_COUNTRY: self._country,
             ATTR_REGION: self._region,
             ATTR_CITY: self._city,
+            ATTR_LAST_AUTHENTICATE_TIME: self._last_authenticated_time,
+            ATTR_PREVIOUS_AUTHENTICATE_TIME: self._previous_authenticated_time,
         }
