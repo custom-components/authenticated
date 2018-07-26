@@ -9,8 +9,7 @@ To get started put `/custom_components/sensor/authenticated.py` here:
 
 ```yaml
 sensor:
-  platform: authenticated
-  enable_notification: 'True'
+  - platform: authenticated
 ```
 
 **Configuration variables:**
@@ -19,12 +18,22 @@ key | description
 :--- | :---  
 **platform (Required)** | The sensor platform name.
 **enable_notification (Optional)** | Turn on/off `persistant_notifications` when a new IP is detected, can be `True`/`False` defaults to `True`.
+**exclude (Optional)** | A list of IP adresses you want to exclude.
   
 **Sample overview:**\
 ![Sample overview](/img/overview.png)
 
-If a new IP is detected, it will be added to a `.ip_authenticated.yaml` file in your configdir, with this information:\
-![fileexample](/img/yamlfile.png)
+If a new IP is detected, it will be added to a `.ip_authenticated.yaml` file in your configdir, with this information:
+
+```yaml
+8.8.8.8:
+  city: Mountain View
+  country: US
+  hostname: google-public-dns-a.google.com
+  last_authenticated: '2018-07-26 09:27:01'
+  previous_authenticated_time: '2018-07-26 09:27:01'
+  region: california
+```
 
 If not disabled, you will also be presented with a `persistant_notification` about the event:\
 ![notification](/img/persistant_notification.png)
