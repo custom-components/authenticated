@@ -19,6 +19,7 @@ __version__ = '0.0.5'
 _LOGGER = logging.getLogger(__name__)
 
 CONF_NOTIFY = 'enable_notification'
+CONF_EXCLUDE = 'exclude'
 
 ATTR_HOSTNAME = 'hostname'
 ATTR_COUNTRY = 'country'
@@ -36,22 +37,25 @@ OUTFILE = '.ip_authenticated.yaml'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NOTIFY, default='True'): cv.string,
-})
+    vol.Optional(CONF_EXCLUDE, default='None'):
+        vol.All(cv.ensure_list, [cv.string]),
+    })
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Create the sensor"""
     notify = config.get(CONF_NOTIFY)
+    exclude = config.get(CONF_EXCLUDE)
     logs = {'homeassistant.components.http.view': 'info'}
     _LOGGER.debug('Making sure the logger is correct set.')
     hass.services.call('logger', 'set_level', logs)
     log = str(hass.config.path(LOGFILE))
     out = str(hass.config.path(OUTFILE))
-    add_devices([Authenticated(hass, notify, log, out)])
+    add_devices([Authenticated(hass, notify, log, out, exclude)])
 
 class Authenticated(Entity):
     """Representation of a Sensor."""
 
-    def __init__(self, hass, notify, log, out):
+    def __init__(self, hass, notify, log, out, exclude):
         """Initialize the sensor."""
         _LOGGER.info('version %s is starting, if you have ANY issues with this, please report them here: https://github.com/custom-components/%s', __version__, __name__.split('.')[1] + '.' + __name__.split('.')[2])
         self._state = None
@@ -61,6 +65,7 @@ class Authenticated(Entity):
         self._city = None
         self._last_authenticated_time = None
         self._previous_authenticated_time = None
+        self._exclude = exclude
         self._notify = notify
         self._log = log
         self._out = out
@@ -147,25 +152,28 @@ class Authenticated(Entity):
             self._state = None
         else:
             ip_address = get_ip.split(' ')[8]
-            hostname = socket.getfqdn(ip_address)
-            access_time = get_ip.split(' ')[0] + ' ' + get_ip.split(' ')[1]
-            checkpath = Path(self._out)
-            if checkpath.exists():
-                if str(ip_address) in open(self._out).read():
-                    self.update_ip(ip_address, access_time, hostname)
+            if ip_address not in self._exclude:
+                hostname = socket.getfqdn(ip_address)
+                access_time = get_ip.split(' ')[0] + ' ' + get_ip.split(' ')[1]
+                checkpath = Path(self._out)
+                if checkpath.exists():
+                    if str(ip_address) in open(self._out).read():
+                        self.update_ip(ip_address, access_time, hostname)
+                    else:
+                        self.new_ip(ip_address, access_time, hostname)
                 else:
-                    self.new_ip(ip_address, access_time, hostname)
+                    self.first_ip(ip_address, access_time, hostname)
+                self._state = ip_address
+                stream = open(self._out, 'r')
+                geo_info = yaml.load(stream)
+                self._hostname = geo_info[ip_address]['hostname']
+                self._country = geo_info[ip_address]['country']
+                self._region = geo_info[ip_address]['region']
+                self._city = geo_info[ip_address]['city']
+                self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
+                self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
             else:
-                self.first_ip(ip_address, access_time, hostname)
-            self._state = ip_address
-            stream = open(self._out, 'r')
-            geo_info = yaml.load(stream)
-            self._hostname = geo_info[ip_address]['hostname']
-            self._country = geo_info[ip_address]['country']
-            self._region = geo_info[ip_address]['region']
-            self._city = geo_info[ip_address]['city']
-            self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
-            self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
+                _LOGGER.debug("%s is in the exclude list, skipping update.", ip_address)
 
     @property
     def name(self):
