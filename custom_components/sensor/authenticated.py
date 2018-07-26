@@ -25,6 +25,7 @@ ATTR_HOSTNAME = 'hostname'
 ATTR_COUNTRY = 'country'
 ATTR_REGION = 'region'
 ATTR_CITY = 'city'
+ATTR_NEW_IP = 'new_ip'
 ATTR_LAST_AUTHENTICATE_TIME = 'last_authenticated_time'
 ATTR_PREVIOUS_AUTHENTICATE_TIME = 'previous_authenticated_time'
 
@@ -63,6 +64,7 @@ class Authenticated(Entity):
         self._country = None
         self._region = None
         self._city = None
+        self._new_ip = 'false'
         self._last_authenticated_time = None
         self._previous_authenticated_time = None
         self._exclude = exclude
@@ -100,6 +102,7 @@ class Authenticated(Entity):
             geo_region = geo['data']['subdivision_1_name']
             geo_city = geo['data']['city_name']
         self.write_file(ip_address, access_time, hostname, geo_country, geo_region, geo_city)
+        self._new_ip = 'true'
         if self._notify == 'True':
             self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
         else:
@@ -115,6 +118,8 @@ class Authenticated(Entity):
         doc[ip_address]['previous_authenticated_time'] = doc[ip_address]['last_authenticated']
         doc[ip_address]['last_authenticated'] = access_time
         doc[ip_address]['hostname'] = hostname
+
+        self._new_ip = 'false'
 
         with open(self._out, 'w') as f:
             yaml.dump(doc, f, default_flow_style=False)
@@ -200,6 +205,7 @@ class Authenticated(Entity):
             ATTR_COUNTRY: self._country,
             ATTR_REGION: self._region,
             ATTR_CITY: self._city,
+            ATTR_NEW_IP: self._new_ip,
             ATTR_LAST_AUTHENTICATE_TIME: self._last_authenticated_time,
             ATTR_PREVIOUS_AUTHENTICATE_TIME: self._previous_authenticated_time,
         }
