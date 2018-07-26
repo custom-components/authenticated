@@ -28,7 +28,7 @@ ATTR_CITY = 'city'
 ATTR_LAST_AUTHENTICATE_TIME = 'last_authenticated_time'
 ATTR_PREVIOUS_AUTHENTICATE_TIME = 'previous_authenticated_time'
 
-SCAN_INTERVAL = timedelta(seconds=30)
+SCAN_INTERVAL = timedelta(minutes=1)
 
 PLATFORM_NAME = 'authenticated'
 
@@ -141,39 +141,41 @@ class Authenticated(Entity):
 
     def update(self):
         """Method to update sensor value"""
-        get_ip = None
+        _LOGGER.debug('Searching log file for IP adresses.')
+        get_ip = []
         with open(self._log) as f:
-            for line in reversed(f.readlines()):
+            for line in f.readlines():
                 if '(auth: True)' in line:
-                    get_ip = line
-                    break
-        if get_ip is None:
+                    get_ip.append(line)
+        if not get_ip:
             _LOGGER.debug('No IP Addresses found in the log...')
             self._state = None
         else:
-            ip_address = get_ip.split(' ')[8]
-            if ip_address not in self._exclude:
-                hostname = socket.getfqdn(ip_address)
-                access_time = get_ip.split(' ')[0] + ' ' + get_ip.split(' ')[1]
-                checkpath = Path(self._out)
-                if checkpath.exists():
-                    if str(ip_address) in open(self._out).read():
-                        self.update_ip(ip_address, access_time, hostname)
-                    else:
-                        self.new_ip(ip_address, access_time, hostname)
-                else:
-                    self.first_ip(ip_address, access_time, hostname)
-                self._state = ip_address
-                stream = open(self._out, 'r')
-                geo_info = yaml.load(stream)
-                self._hostname = geo_info[ip_address]['hostname']
-                self._country = geo_info[ip_address]['country']
-                self._region = geo_info[ip_address]['region']
-                self._city = geo_info[ip_address]['city']
-                self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
-                self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
-            else:
-                _LOGGER.debug("%s is in the exclude list, skipping update.", ip_address)
+            for line in get_ip:
+              ip_address = line.split(' ')[8]
+              _LOGGER.debug('Started prosessing for %s', ip_address)
+              if ip_address not in self._exclude:
+                  hostname = socket.getfqdn(ip_address)
+                  access_time = line.split(' ')[0] + ' ' + line.split(' ')[1]
+                  checkpath = Path(self._out)
+                  if checkpath.exists():
+                      if str(ip_address) in open(self._out).read():
+                          self.update_ip(ip_address, access_time, hostname)
+                      else:
+                          self.new_ip(ip_address, access_time, hostname)
+                  else:
+                      self.first_ip(ip_address, access_time, hostname)
+                  self._state = ip_address
+                  stream = open(self._out, 'r')
+                  geo_info = yaml.load(stream)
+                  self._hostname = geo_info[ip_address]['hostname']
+                  self._country = geo_info[ip_address]['country']
+                  self._region = geo_info[ip_address]['region']
+                  self._city = geo_info[ip_address]['city']
+                  self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
+                  self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
+              else:
+                  _LOGGER.debug("%s is in the exclude list, skipping update.", ip_address)
 
     @property
     def name(self):
