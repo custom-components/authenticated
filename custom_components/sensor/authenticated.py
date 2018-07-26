@@ -83,22 +83,22 @@ class Authenticated(Entity):
     def new_ip(self, ip_address, access_time, hostname):
         """If the IP is new"""
         _LOGGER.debug('Found new IP %s', ip_address)
-        fetchurl = 'https://ipapi.co/' + ip_address + '/json/'
+        fetchurl = 'https://ipvigilante.com/json/' + ip_address
         try:
             geo = requests.get(fetchurl, timeout=5).json()
         except:
             geo = 'none'
         else:
             geo = geo
-        if 'reserved' in geo or geo['error']:
+        if geo['status'] == 'error':
             _LOGGER.debug('The IP is reserved, no GEO info available...')
             geo_country = 'none'
             geo_region = 'none'
             geo_city = 'none'
         else:
-            geo_country = geo['country']
-            geo_region = geo['region']
-            geo_city = geo['city']
+            geo_country = geo['data']['country_name']
+            geo_region = geo['data']['subdivision_1_name']
+            geo_city = geo['data']['city_name']
         self.write_file(ip_address, access_time, hostname, geo_country, geo_region, geo_city)
         if self._notify == 'True':
             self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
@@ -152,30 +152,30 @@ class Authenticated(Entity):
             self._state = None
         else:
             for line in get_ip:
-              ip_address = line.split(' ')[8]
-              _LOGGER.debug('Started prosessing for %s', ip_address)
-              if ip_address not in self._exclude:
-                  hostname = socket.getfqdn(ip_address)
-                  access_time = line.split(' ')[0] + ' ' + line.split(' ')[1]
-                  checkpath = Path(self._out)
-                  if checkpath.exists():
-                      if str(ip_address) in open(self._out).read():
-                          self.update_ip(ip_address, access_time, hostname)
-                      else:
-                          self.new_ip(ip_address, access_time, hostname)
-                  else:
-                      self.first_ip(ip_address, access_time, hostname)
-                  self._state = ip_address
-                  stream = open(self._out, 'r')
-                  geo_info = yaml.load(stream)
-                  self._hostname = geo_info[ip_address]['hostname']
-                  self._country = geo_info[ip_address]['country']
-                  self._region = geo_info[ip_address]['region']
-                  self._city = geo_info[ip_address]['city']
-                  self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
-                  self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
-              else:
-                  _LOGGER.debug("%s is in the exclude list, skipping update.", ip_address)
+                ip_address = line.split(' ')[8]
+                _LOGGER.debug('Started prosessing for %s', ip_address)
+                if ip_address not in self._exclude:
+                    hostname = socket.getfqdn(ip_address)
+                    access_time = line.split(' ')[0] + ' ' + line.split(' ')[1]
+                    checkpath = Path(self._out)
+                    if checkpath.exists():
+                        if str(ip_address) in open(self._out).read():
+                            self.update_ip(ip_address, access_time, hostname)
+                        else:
+                            self.new_ip(ip_address, access_time, hostname)
+                    else:
+                        self.first_ip(ip_address, access_time, hostname)
+                    self._state = ip_address
+                    stream = open(self._out, 'r')
+                    geo_info = yaml.load(stream)
+                    self._hostname = geo_info[ip_address]['hostname']
+                    self._country = geo_info[ip_address]['country']
+                    self._region = geo_info[ip_address]['region']
+                    self._city = geo_info[ip_address]['city']
+                    self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
+                    self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
+                else:
+                    _LOGGER.debug("%s is in the exclude list, skipping update.", ip_address)
 
     @property
     def name(self):
