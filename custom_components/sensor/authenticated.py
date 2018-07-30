@@ -14,7 +14,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
-__version__ = '0.0.8'
+__version__ = '0.0.9'
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,9 +102,13 @@ class Authenticated(Entity):
             geo_region = geo['data']['subdivision_1_name']
             geo_city = geo['data']['city_name']
         self.write_file(ip_address, access_time, hostname, geo_country, geo_region, geo_city)
-        self._new_ip = True
+        self._new_ip = 'true'
+        _LOGGER.debug(ip_address)
+        _LOGGER.debug(geo_country)
+        _LOGGER.debug(geo_region)
+        _LOGGER.debug(geo_city)
         if self._notify:
-            self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
+            self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + str(geo_country) + ', ' + str(geo_region) + ', ' + str(geo_city) + ')'), 'New successful login from')
         else:
             _LOGGER.debug('persistent_notifications is disabled in config, enable_notification=%s', self._notify)
 
@@ -119,7 +123,7 @@ class Authenticated(Entity):
         doc[ip_address]['last_authenticated'] = access_time
         doc[ip_address]['hostname'] = hostname
 
-        self._new_ip = False
+        self._new_ip = 'false'
 
         with open(self._out, 'w') as f:
             yaml.dump(doc, f, default_flow_style=False)
