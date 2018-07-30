@@ -1,10 +1,10 @@
 # sensor.authenticated
 
 A platform which allows you to get information sucessfull logins to Home Assistant.
-  
+
 To get started put `/custom_components/sensor/authenticated.py` here:  
 `<config directory>/custom_components/sensor/authenticated.py`  
-  
+
 **Example configuration.yaml:**
 
 ```yaml
@@ -14,12 +14,12 @@ sensor:
 
 **Configuration variables:**
 
-key | description  
-:--- | :---  
-**platform (Required)** | The sensor platform name.
-**enable_notification (Optional)** | Turn on/off `persistant_notifications` when a new IP is detected, can be `True`/`False` defaults to `True`.
-**exclude (Optional)** | A list of IP adresses you want to exclude.
-  
+| key | required | default | description
+| --- | --- | --- | ---
+| **platform** | yes | | The sensor platform name.
+| **enable_notification** | no | `true` | Turn on/off `persistant_notifications` when a new IP is detected, can be `true`/`false`.
+| **exclude** | no | | A list of IP adresses you want to exclude.
+
 **Sample overview:**\
 ![Sample overview](/img/overview.png)
 

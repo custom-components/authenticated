@@ -37,7 +37,7 @@ LOGFILE = 'home-assistant.log'
 OUTFILE = '.ip_authenticated.yaml'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_NOTIFY, default='True'): cv.string,
+    vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
     vol.Optional(CONF_EXCLUDE, default='None'):
         vol.All(cv.ensure_list, [cv.string]),
     })
@@ -64,7 +64,7 @@ class Authenticated(Entity):
         self._country = None
         self._region = None
         self._city = None
-        self._new_ip = 'false'
+        self._new_ip = False
         self._last_authenticated_time = None
         self._previous_authenticated_time = None
         self._exclude = exclude
@@ -102,8 +102,8 @@ class Authenticated(Entity):
             geo_region = geo['data']['subdivision_1_name']
             geo_city = geo['data']['city_name']
         self.write_file(ip_address, access_time, hostname, geo_country, geo_region, geo_city)
-        self._new_ip = 'true'
-        if self._notify == 'True':
+        self._new_ip = True
+        if self._notify:
             self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + geo_country + ', ' + geo_region + ', ' + geo_city + ')'), 'New successful login from')
         else:
             _LOGGER.debug('persistent_notifications is disabled in config, enable_notification=%s', self._notify)
@@ -119,7 +119,7 @@ class Authenticated(Entity):
         doc[ip_address]['last_authenticated'] = access_time
         doc[ip_address]['hostname'] = hostname
 
-        self._new_ip = 'false'
+        self._new_ip = False
 
         with open(self._out, 'w') as f:
             yaml.dump(doc, f, default_flow_style=False)
