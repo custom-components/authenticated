@@ -154,7 +154,7 @@ class Authenticated(Entity):
         get_ip = []
         with open(self._log) as f:
             for line in reversed(f.readlines()):
-                if '(auth: True)' in line:
+                if '(auth: True)' in line or 'Serving /auth/token' in line:
                     ip = line.split(' ')[8]
                     access = line.split(' ')[0] + ' ' + line.split(' ')[1]
                     if ip not in str(get_ip):
