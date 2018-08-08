@@ -154,7 +154,7 @@ class Authenticated(Entity):
         get_ip = []
         with open(self._log) as f:
             for line in f.readlines():
-                if '(auth: True)' in line:
+                if '(auth: True)' in line or 'Serving /auth/token' in line:
                     get_ip.append(line)
         if not get_ip:
             _LOGGER.debug('No IP Addresses found in the log...')
