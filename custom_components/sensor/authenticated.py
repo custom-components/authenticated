@@ -14,7 +14,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
-__version__ = '0.0.9'
+__version__ = '0.1.0'
 
 _LOGGER = logging.getLogger(__name__)
 
