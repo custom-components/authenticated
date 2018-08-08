@@ -153,19 +153,23 @@ class Authenticated(Entity):
         _LOGGER.debug('Searching log file for IP adresses.')
         get_ip = []
         with open(self._log) as f:
-            for line in f.readlines():
+            for line in reversed(f.readlines()):
                 if '(auth: True)' in line:
-                    get_ip.append(line)
+                    ip = line.split(' ')[8]
+                    access = line.split(' ')[0] + ' ' + line.split(' ')[1]
+                    if ip not in str(get_ip):
+                        get_ip.append([ip, access])
         if not get_ip:
             _LOGGER.debug('No IP Addresses found in the log...')
             self._state = None
         else:
+            _LOGGER.debug(get_ip)
             for line in get_ip:
-                ip_address = line.split(' ')[8]
+                ip_address = line[0]
                 _LOGGER.debug('Started prosessing for %s', ip_address)
                 if ip_address not in self._exclude:
                     hostname = socket.getfqdn(ip_address)
-                    access_time = line.split(' ')[0] + ' ' + line.split(' ')[1]
+                    access_time = line[1]
                     checkpath = Path(self._out)
                     if checkpath.exists():
                         if str(ip_address) in open(self._out).read():
