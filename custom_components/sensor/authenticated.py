@@ -4,9 +4,9 @@ For more details about this component, please refer to the documentation at
 https://github.com/custom-components/sensor.authenticated
 """
 import logging
+import os
 import socket
 from datetime import timedelta
-from pathlib import Path
 import requests
 import voluptuous as vol
 import yaml
@@ -14,7 +14,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class Authenticated(Entity):
 
     def __init__(self, hass, notify, log, out, exclude):
         """Initialize the sensor."""
-        _LOGGER.info('version %s is starting, if you have ANY issues with this, please report them here: https://github.com/custom-components/%s', __version__, __name__.split('.')[1] + '.' + __name__.split('.')[2])
+        hass.data[PLATFORM_NAME] = {}
         self._state = None
         self._hostname = None
         self._country = None
@@ -71,124 +71,76 @@ class Authenticated(Entity):
         self._notify = notify
         self._log = log
         self._out = out
-        self.hass = hass
+        self._data = hass.data[PLATFORM_NAME]
+        self.initial_run()
         self.update()
 
-    def first_ip(self, ip_address, access_time, hostname):
-        """If the IP is the first"""
-        _LOGGER.debug('First IP, creating file...')
-        with open(self._out, 'a') as the_file:
-            the_file.write(ip_address + ':')
-        self.new_ip(ip_address, access_time, hostname)
-        the_file.close()
-
-    def new_ip(self, ip_address, access_time, hostname):
-        """If the IP is new"""
-        _LOGGER.debug('Found new IP %s', ip_address)
-        fetchurl = 'https://ipvigilante.com/json/' + ip_address
-        try:
-            geo = requests.get(fetchurl, timeout=5).json()
-        except:
-            geo = 'none'
+    def initial_run(self):
+        """Run this at startup to initialize the platform data."""
+        if os.path.isfile(self._out):
+            file_content = get_outfile_content(self._out)
+            for ip_address in file_content:
+                accesstime = file_content[ip_address]['last_authenticated']
+                self._data[ip_address] = {'accesstime': accesstime}
         else:
-            geo = geo
-        if geo['status'] == 'error':
-            _LOGGER.debug('The IP is reserved, no GEO info available...')
-            geo_country = 'none'
-            geo_region = 'none'
-            geo_city = 'none'
-        else:
-            geo_country = geo['data']['country_name']
-            geo_region = geo['data']['subdivision_1_name']
-            geo_city = geo['data']['city_name']
-        self.write_file(ip_address, access_time, hostname, geo_country, geo_region, geo_city)
-        self._new_ip = 'true'
-        _LOGGER.debug(ip_address)
-        _LOGGER.debug(geo_country)
-        _LOGGER.debug(geo_region)
-        _LOGGER.debug(geo_city)
-        if self._notify:
-            self.hass.components.persistent_notification.create('{}'.format(ip_address + ' (' + str(geo_country) + ', ' + str(geo_region) + ', ' + str(geo_city) + ')'), 'New successful login from')
-        else:
-            _LOGGER.debug('persistent_notifications is disabled in config, enable_notification=%s', self._notify)
-
-    def update_ip(self, ip_address, access_time, hostname):
-        """If we know this IP"""
-        _LOGGER.debug('Found known IP %s, updating timestamps.', ip_address)
-        with open(self._out) as f:
-            doc = yaml.load(f)
-        f.close()
-
-        doc[ip_address]['previous_authenticated_time'] = doc[ip_address]['last_authenticated']
-        doc[ip_address]['last_authenticated'] = access_time
-        doc[ip_address]['hostname'] = hostname
-
-        self._new_ip = 'false'
-
-        with open(self._out, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
-        f.close()
-
-    def write_file(self, ip_address, access_time, hostname, country='none', region='none', city='none'):
-        """Writes info to out control file"""
-        with open(self._out) as f:
-            doc = yaml.load(f)
-        f.close()
-
-        doc[ip_address] = dict(
-            hostname=hostname,
-            last_authenticated=access_time,
-            previous_authenticated_time='none',
-            country=country,
-            region=region,
-            city=city
-        )
-
-        with open(self._out, 'w') as f:
-            yaml.dump(doc, f, default_flow_style=False)
-        f.close()
+            _LOGGER.debug('File has not been created, no data pressent.')
 
     def update(self):
         """Method to update sensor value"""
-        _LOGGER.debug('Searching log file for IP adresses.')
-        get_ip = []
-        with open(self._log) as f:
-            for line in reversed(f.readlines()):
-                if '(auth: True)' in line or 'Serving /auth/token' in line:
-                    ip = line.split(' ')[8]
-                    access = line.split(' ')[0] + ' ' + line.split(' ')[1]
-                    if ip not in str(get_ip):
-                        get_ip.append([ip, access])
-        if not get_ip:
-            _LOGGER.debug('No IP Addresses found in the log...')
-            self._state = None
+        log_content = get_log_content(self._log, self._exclude)
+        count = len(log_content)
+        if count != 0:
+            last_ip = list(log_content)[-1]
+            for ip_address in log_content:
+                self.prosess_ip(ip_address, log_content[ip_address]['access'])
+            known_ips = get_outfile_content(self._out)
+            self._state = last_ip
+            self._hostname = known_ips[last_ip]['hostname']
+            self._country = known_ips[last_ip]['country']
+            self._region = known_ips[last_ip]['region']
+            self._city = known_ips[last_ip]['city']
+            self._last_authenticated_time = known_ips[last_ip]['last_authenticated']
+            self._previous_authenticated_time = known_ips[last_ip]['previous_authenticated_time']
+
+    def prosess_ip(self, ip_address, accesstime):
+        """Prosess the IP found in the log"""
+        if not os.path.isfile(self._out):
+            # First IP
+            self.add_new_ip(ip_address, accesstime)
+            self._new_ip = True
+        elif ip_address not in self._data:
+            # New ip_address
+            self.add_new_ip(ip_address, accesstime)
+            self._new_ip = True
+        elif self._data[ip_address]['accesstime'] != accesstime:
+            # Update timestamp
+            update_ip(self._out, ip_address, accesstime)
+            self._new_ip = False
+            self._data[ip_address] = {'accesstime': accesstime}
+        self._data[ip_address] = {'accesstime': accesstime}
+    def add_new_ip(self, ip_address, access_time):
+        """Add new IP to the file"""
+        _LOGGER.info('Found new IP %s', ip_address)
+        hostname = get_hostname(ip_address)
+        geo = get_geo_data(ip_address)
+        if geo['result']:
+            country = geo['data']['country_name']
+            region = geo['data']['subdivision_1_name']
+            city = geo['data']['city_name']
         else:
-            _LOGGER.debug(get_ip)
-            for line in get_ip:
-                ip_address = line[0]
-                _LOGGER.debug('Started prosessing for %s', ip_address)
-                if ip_address not in self._exclude:
-                    hostname = socket.getfqdn(ip_address)
-                    access_time = line[1]
-                    checkpath = Path(self._out)
-                    if checkpath.exists():
-                        if str(ip_address) in open(self._out).read():
-                            self.update_ip(ip_address, access_time, hostname)
-                        else:
-                            self.new_ip(ip_address, access_time, hostname)
-                    else:
-                        self.first_ip(ip_address, access_time, hostname)
-                    self._state = ip_address
-                    stream = open(self._out, 'r')
-                    geo_info = yaml.load(stream)
-                    self._hostname = geo_info[ip_address]['hostname']
-                    self._country = geo_info[ip_address]['country']
-                    self._region = geo_info[ip_address]['region']
-                    self._city = geo_info[ip_address]['city']
-                    self._last_authenticated_time = geo_info[ip_address]['last_authenticated']
-                    self._previous_authenticated_time = geo_info[ip_address]['previous_authenticated_time']
-                else:
-                    _LOGGER.debug("%s is in the exclude list, skipping update.", ip_address)
+            country = 'none'
+            region = 'none'
+            city = 'none'
+        write_to_file(self._out, ip_address, access_time,
+                      access_time, hostname, country, region, city)
+        self._new_ip = 'true'
+        if self._notify:
+            notify = self.hass.components.persistent_notification.create
+            notify('{}'.format(ip_address + ' (' + str(country) + ', ' + str(region) +
+                               ', ' + str(city) + ')'), 'New successful login from')
+        else:
+            _LOGGER.debug('persistent_notifications is disabled in config, enable_notification=%s',
+                          self._notify)
 
     @property
     def name(self):
@@ -217,3 +169,77 @@ class Authenticated(Entity):
             ATTR_LAST_AUTHENTICATE_TIME: self._last_authenticated_time,
             ATTR_PREVIOUS_AUTHENTICATE_TIME: self._previous_authenticated_time,
         }
+
+def get_outfile_content(file):
+    """Get the content of the outfile"""
+    with open(file) as out_file:
+        content = yaml.load(out_file)
+    out_file.close()
+    return content
+
+def get_log_content(file, exclude):
+    """Get the content of the logfile"""
+    _LOGGER.debug('Searching log file for IP adresses.')
+    content = {}
+    with open(file) as log_file:
+        for line in log_file.readlines():
+            if '(auth: True)' in line or 'Serving /auth/token' in line:
+                ip_address = line.split(' ')[8]
+                if ip_address not in exclude:
+                    access = line.split(' ')[0] + ' ' + line.split(' ')[1]
+                    content[ip_address] = {"access": access}
+    log_file.close()
+    return content
+
+def get_geo_data(ip_address):
+    """Get geo data for an IP"""
+    api = 'https://ipvigilante.com/json/' + ip_address
+    try:
+        geo = requests.get(api, timeout=5).json()
+    except:
+        result = {"result": False, "data": "none"}
+    else:
+        if geo['status'] == 'error':
+            result = {"result": False, "data": "none"}
+        else:
+            result = {"result": True, "data": geo['data']}
+    return result
+
+def get_hostname(ip_address):
+    """Return hostname for an IP"""
+    return socket.getfqdn(ip_address)
+
+def update_ip(file, ip_address, access_time):
+    """Update the timestamp for an IP"""
+    hostname = get_hostname(ip_address)
+    _LOGGER.debug('Found known IP %s, updating timestamps.', ip_address)
+    info = get_outfile_content(file)
+
+    info[ip_address]['previous_authenticated_time'] = info[ip_address]['last_authenticated']
+    info[ip_address]['last_authenticated'] = access_time
+    info[ip_address]['hostname'] = hostname
+
+    with open(file, 'w') as out_file:
+        yaml.dump(info, out_file, default_flow_style=False)
+    out_file.close()
+
+def write_to_file(file, ip_address, last_authenticated,
+                  previous_authenticated_time, hostname, country, region, city):
+    """Writes info to out control file"""
+    with open(file, 'a') as out_file:
+        out_file.write(ip_address + ':')
+    out_file.close()
+
+    info = get_outfile_content(file)
+
+    info[ip_address] = dict(
+        hostname=hostname,
+        last_authenticated=last_authenticated,
+        previous_authenticated_time=previous_authenticated_time,
+        country=country,
+        region=region,
+        city=city
+    )
+    with open(file, 'w') as out_file:
+        yaml.dump(info, out_file, default_flow_style=False)
+    out_file.close()
