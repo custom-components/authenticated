@@ -48,3 +48,7 @@ logger:
   logs:
     custom_components.sensor.authenticated: debug
 ```
+
+***
+
+[buymeacoffee.com](https://www.buymeacoffee.com/ludeeus)
