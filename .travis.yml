@@ -1,7 +1,17 @@
 language: python
-python:
-  - "3.6"
-# pycodestyle is the new name of pep8
-install: pip install pycodestyle
-script:
-  - find . -name \*.py -exec pycodestyle {} +
+install: pip install pycodestyle homeassistant
+jobs:
+  include:
+    - stage: test
+      name: "Linting with pycodestyle"
+      python: "3.6"
+      script:
+        - find . -name \*.py -exec pycodestyle {} +
+    - stage: test
+      name: "Load component/platform in Home Assistant"
+      python: "3.6"
+      script:
+        - hass -c . --daemon
+        - sleep 60
+        - cat ./home-assistant.log
+        - if grep -q 'ERROR' ./home-assistant.log; then echo "There was an error starting Home Assistant"; exit 1; fi
