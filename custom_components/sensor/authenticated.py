@@ -49,7 +49,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     notify = config.get(CONF_NOTIFY)
     exclude = config.get(CONF_EXCLUDE)
     logs = {'homeassistant.components.http.view': 'info'}
-    _LOGGER.debug('Making sure the logger is correct set.')
+    _LOGGER.debug('Making sure the logger is correctly setup.')
     hass.services.call('logger', 'set_level', logs)
     log = str(hass.config.path(LOGFILE))
     out = str(hass.config.path(OUTFILE))
@@ -95,7 +95,7 @@ class Authenticated(Entity):
         if count != 0:
             last_ip = list(log_content)[-1]
             for ip_address in log_content:
-                self.prosess_ip(ip_address, log_content[ip_address]['access'])
+                self.process_ip(ip_address, log_content[ip_address]['access'])
             known_ips = get_outfile_content(self._out)
             self._state = last_ip
             self._hostname = known_ips[last_ip]['hostname']
@@ -105,8 +105,8 @@ class Authenticated(Entity):
             self._LAT = known_ips[last_ip]['last_authenticated']
             self._PAT = known_ips[last_ip]['previous_authenticated_time']
 
-    def prosess_ip(self, ip_address, accesstime):
-        """Prosess the IP found in the log"""
+    def process_ip(self, ip_address, accesstime):
+        """Process the IP found in the log"""
         if not os.path.isfile(self._out):
             # First IP
             self.add_new_ip(ip_address, accesstime)
