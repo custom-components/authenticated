@@ -1,4 +1,4 @@
-# sensor.authenticated
+# sensor.authenticated [![Build Status](https://www.travis-ci.com/custom-components/sensor.authenticated.svg?branch=master)](https://www.travis-ci.com/custom-components/sensor.authenticated)
 
 A platform which allows you to get information sucessfull logins to Home Assistant.
 
