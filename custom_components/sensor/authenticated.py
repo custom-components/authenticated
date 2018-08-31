@@ -125,8 +125,8 @@ class Authenticated(Entity):
         geo = get_geo_data(ip_address)
         if geo['result']:
             country = geo['data']['country_name']
-            region = geo['data']['subdivision_1_name']
-            city = geo['data']['city_name']
+            region = geo['data']['region']
+            city = geo['data']['city']
         else:
             country = 'none'
             region = 'none'
@@ -179,7 +179,7 @@ def get_outfile_content(file):
 
 def get_log_content(file, exclude):
     """Get the content of the logfile"""
-    _LOGGER.debug('Searching log file for IP adresses.')
+    _LOGGER.debug('Searching log file for IP addresses.')
     content = {}
     with open(file) as log_file:
         for line in log_file.readlines():
@@ -193,16 +193,16 @@ def get_log_content(file, exclude):
 
 def get_geo_data(ip_address):
     """Get geo data for an IP"""
-    api = 'https://ipvigilante.com/json/' + ip_address
+    api = 'https://ipapi.co/' + ip_address + '/json'
     try:
         geo = requests.get(api, timeout=5).json()
     except:
         result = {"result": False, "data": "none"}
     else:
-        if geo['status'] == 'error':
+        if 'reserved' in str(geo) or 'reserved' in str(geo):
             result = {"result": False, "data": "none"}
         else:
-            result = {"result": True, "data": geo['data']}
+            result = {"result": True, "data": geo}
     return result
 
 def get_hostname(ip_address):
