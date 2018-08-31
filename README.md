@@ -1,6 +1,6 @@
 # sensor.authenticated [![Build Status](https://www.travis-ci.com/custom-components/sensor.authenticated.svg?branch=master)](https://www.travis-ci.com/custom-components/sensor.authenticated)
 
-A platform which allows you to get information sucessfull logins to Home Assistant.
+A platform which allows you to get information successful logins to Home Assistant.
 
 To get started put `/custom_components/sensor/authenticated.py` here:  
 `<config directory>/custom_components/sensor/authenticated.py`  
@@ -35,7 +35,7 @@ If a new IP is detected, it will be added to a `.ip_authenticated.yaml` file in 
   region: california
 ```
 
-If not disabled, you will also be presented with a `persistant_notification` about the event:\
+If not disabled, you will also be presented with a `persistent_notification` about the event:\
 ![notification](/img/persistant_notification.png)
 
 ## Debug logging
