@@ -1,5 +1,6 @@
 """
-A platform which allows you to get information about sucessfull logins to Home Assistant.
+A platform which allows you to get information
+about successfull logins to Home Assistant.
 For more details about this component, please refer to the documentation at
 https://github.com/custom-components/sensor.authenticated
 """
@@ -42,6 +43,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         vol.All(cv.ensure_list, [cv.string]),
     })
 
+
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Create the sensor"""
     notify = config.get(CONF_NOTIFY)
@@ -52,6 +54,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     log = str(hass.config.path(LOGFILE))
     out = str(hass.config.path(OUTFILE))
     add_devices([Authenticated(hass, notify, log, out, exclude)])
+
 
 class Authenticated(Entity):
     """Representation of a Sensor."""
@@ -65,8 +68,8 @@ class Authenticated(Entity):
         self._region = None
         self._city = None
         self._new_ip = False
-        self._last_authenticated_time = None
-        self._previous_authenticated_time = None
+        self._LAT = None
+        self._PAT = None
         self._exclude = exclude
         self._notify = notify
         self._log = log
@@ -99,8 +102,8 @@ class Authenticated(Entity):
             self._country = known_ips[last_ip]['country']
             self._region = known_ips[last_ip]['region']
             self._city = known_ips[last_ip]['city']
-            self._last_authenticated_time = known_ips[last_ip]['last_authenticated']
-            self._previous_authenticated_time = known_ips[last_ip]['previous_authenticated_time']
+            self._LAT = known_ips[last_ip]['last_authenticated']
+            self._PAT = known_ips[last_ip]['previous_authenticated_time']
 
     def prosess_ip(self, ip_address, accesstime):
         """Prosess the IP found in the log"""
@@ -118,6 +121,7 @@ class Authenticated(Entity):
             self._new_ip = False
             self._data[ip_address] = {'accesstime': accesstime}
         self._data[ip_address] = {'accesstime': accesstime}
+
     def add_new_ip(self, ip_address, access_time):
         """Add new IP to the file"""
         _LOGGER.info('Found new IP %s', ip_address)
@@ -136,11 +140,12 @@ class Authenticated(Entity):
         self._new_ip = 'true'
         if self._notify:
             notify = self.hass.components.persistent_notification.create
-            notify('{}'.format(ip_address + ' (' + str(country) + ', ' + str(region) +
-                               ', ' + str(city) + ')'), 'New successful login from')
+            notify('{}'.format(ip_address +' (' +
+                               str(country) + ', ' +
+                               str(region) + ', ' +
+                               str(city) + ')'), 'New successful login from')
         else:
-            _LOGGER.debug('persistent_notifications is disabled in config, enable_notification=%s',
-                          self._notify)
+            _LOGGER.debug('persistent_notifications is disabled in config')
 
     @property
     def name(self):
@@ -166,9 +171,10 @@ class Authenticated(Entity):
             ATTR_REGION: self._region,
             ATTR_CITY: self._city,
             ATTR_NEW_IP: self._new_ip,
-            ATTR_LAST_AUTHENTICATE_TIME: self._last_authenticated_time,
-            ATTR_PREVIOUS_AUTHENTICATE_TIME: self._previous_authenticated_time,
+            ATTR_LAST_AUTHENTICATE_TIME: self._LAT,
+            ATTR_PREVIOUS_AUTHENTICATE_TIME: self._PAT,
         }
+
 
 def get_outfile_content(file):
     """Get the content of the outfile"""
@@ -176,6 +182,7 @@ def get_outfile_content(file):
         content = yaml.load(out_file)
     out_file.close()
     return content
+
 
 def get_log_content(file, exclude):
     """Get the content of the logfile"""
@@ -191,6 +198,7 @@ def get_log_content(file, exclude):
     log_file.close()
     return content
 
+
 def get_geo_data(ip_address):
     """Get geo data for an IP"""
     api = 'https://ipapi.co/' + ip_address + '/json'
@@ -205,9 +213,11 @@ def get_geo_data(ip_address):
             result = {"result": True, "data": geo}
     return result
 
+
 def get_hostname(ip_address):
     """Return hostname for an IP"""
     return socket.getfqdn(ip_address)
+
 
 def update_ip(file, ip_address, access_time):
     """Update the timestamp for an IP"""
@@ -215,7 +225,8 @@ def update_ip(file, ip_address, access_time):
     _LOGGER.debug('Found known IP %s, updating timestamps.', ip_address)
     info = get_outfile_content(file)
 
-    info[ip_address]['previous_authenticated_time'] = info[ip_address]['last_authenticated']
+    last = info[ip_address]['last_authenticated']
+    info[ip_address]['previous_authenticated_time'] = last
     info[ip_address]['last_authenticated'] = access_time
     info[ip_address]['hostname'] = hostname
 
@@ -223,8 +234,10 @@ def update_ip(file, ip_address, access_time):
         yaml.dump(info, out_file, default_flow_style=False)
     out_file.close()
 
+
 def write_to_file(file, ip_address, last_authenticated,
-                  previous_authenticated_time, hostname, country, region, city):
+                  previous_authenticated_time,
+                  hostname, country, region, city):
     """Writes info to out control file"""
     with open(file, 'a') as out_file:
         out_file.write(ip_address + ':')
