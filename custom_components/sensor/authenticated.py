@@ -140,7 +140,7 @@ class Authenticated(Entity):
         self._new_ip = 'true'
         if self._notify:
             notify = self.hass.components.persistent_notification.create
-            notify('{}'.format(ip_address +' (' +
+            notify('{}'.format(ip_address + ' (' +
                                str(country) + ', ' +
                                str(region) + ', ' +
                                str(city) + ')'), 'New successful login from')
@@ -204,7 +204,7 @@ def get_geo_data(ip_address):
     api = 'https://ipapi.co/' + ip_address + '/json'
     try:
         geo = requests.get(api, timeout=5).json()
-    except:
+    except Exception:
         result = {"result": False, "data": "none"}
     else:
         if 'reserved' in str(geo) or 'reserved' in str(geo):
