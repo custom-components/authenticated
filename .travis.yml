@@ -1,0 +1,7 @@
+language: python
+python:
+  - "3.6"
+# pycodestyle is the new name of pep8
+install: pip install pycodestyle
+script:
+  - find . -name \*.py -exec pycodestyle {} +
