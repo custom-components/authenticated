@@ -210,11 +210,6 @@ def get_log_content(file, exclude):
     log_file.close()
     return content
 
-
-#country = geo['data']['country_name']
-#region = geo['data']['region']
-#city = geo['data']['city']
-
 def get_geo_data(ip_address, provider):
     """Get geo data for an IP"""
     result = {"result": False, "data": "none"}
@@ -236,7 +231,7 @@ def get_geo_data(ip_address, provider):
         api = 'https://extreme-ip-lookup.com/json/' + ip_address
         try:
             data = requests.get(api, timeout=5).json()
-            if 'reserved' in str(data):
+            if 'Private' in data['org']:
                 result = {"result": False, "data": "none"}
             else:
                 result = {"result": True, "data": {
@@ -247,16 +242,16 @@ def get_geo_data(ip_address, provider):
         except Exception:
             result = {"result": False, "data": "none"}
     elif provider == 'ipvigilante':
-        api = 'https://extreme-ip-lookup.com/json/' + ip_address
+        api = 'https://ipvigilante.com/json/' + ip_address
         try:
             data = requests.get(api, timeout=5).json()
-            if 'reserved' in str(data):
+            if data['status'] != 'success':
                 result = {"result": False, "data": "none"}
             else:
                 result = {"result": True, "data": {
-                    'country_name': data['country_name'],
-                    'region': data['subdivision_1_name'],
-                    'city': data['city_name']
+                    'country_name': data['data']['country_name'],
+                    'region': data['data']['subdivision_1_name'],
+                    'city': data['data']['city_name']
                 }}
         except Exception:
             result = {"result": False, "data": "none"}
