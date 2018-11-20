@@ -43,7 +43,7 @@ PROVIDERS = ['ipapi', 'extreme', 'ipvigilante']
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_PROVIDER, default='ipapi'): vol.In(PROVIDERS),
-    vol.Optional(CONF_LOG_LOCATION, default=''): vol.string,
+    vol.Optional(CONF_LOG_LOCATION, default=''): cv.string,
     vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
     vol.Optional(CONF_EXCLUDE, default='None'):
         vol.All(cv.ensure_list, [cv.string]),
@@ -209,6 +209,7 @@ def get_log_content(file, exclude):
                     content[ip_address] = {"access": access}
     log_file.close()
     return content
+
 
 def get_geo_data(ip_address, provider):
     """Get geo data for an IP"""
