@@ -1,4 +1,4 @@
-# sensor.authenticated [![Build Status](https://www.travis-ci.com/custom-components/sensor.authenticated.svg?branch=master)](https://www.travis-ci.com/custom-components/sensor.authenticated)
+# authenticated
 
 A platform which allows you to get information successful logins to Home Assistant.
 
@@ -18,7 +18,7 @@ sensor:
 | --- | --- | --- | ---
 | **platform** | yes | | The sensor platform name.
 | **enable_notification** | no | `true` | Turn on/off `persistant_notifications` when a new IP is detected, can be `true`/`false`.
-| **exclude** | no | | A list of IP adresses you want to exclude.
+| **exclude** | no | | A list of IP addresses you want to exclude.
 | **provider** | no | 'ipapi' | The provider you want to use for GEO Lookup, 'ipapi', 'extreme', 'ipvigilante'.
 | **log_location** | no | | Full path to the logfile.
 
