@@ -114,6 +114,7 @@ class Authenticated(Entity):
                     access_data["prev_used_at"] = store["previous_authenticated_time"]
                 else:
                     access_data["prev_used_at"] = None
+                new = False
 
             else:
                 access_data = {
@@ -122,7 +123,8 @@ class Authenticated(Entity):
                     "last_used_at": access["last_used_at"],
                     "prev_used_at": None
                 }
-            self.hass.data[PLATFORM_NAME][access["last_used_ip"]] = IPAddress(access_data, users, self.provider)
+                new = True
+            self.hass.data[PLATFORM_NAME][access["last_used_ip"]] = IPAddress(access_data, users, self.provider, new)
 
     def update(self):
         """Method to update sensor value"""
@@ -263,7 +265,12 @@ def get_geo_data(ip_address, provider):
 
 def get_hostname(ip_address):
     """Return hostname for an IP"""
-    return socket.getfqdn(ip_address)
+    hostname = None
+    try:
+        hostname = socket.getfqdn(ip_address)
+    except Exception:
+        pass
+    return hostname
 
 
 def load_authentications(authfile):
@@ -285,7 +292,7 @@ def load_authentications(authfile):
 
 class IPAddress:
     """IP Address class."""
-    def __init__(self, access_data, users, provider):
+    def __init__(self, access_data, users, provider, new=True):
         self.all_users = users
         self.access_data = access_data
         self.provider = provider
@@ -297,7 +304,7 @@ class IPAddress:
         self.city = None
         self.region = None
         self.country = None
-        self.new_ip = True
+        self.new_ip = new
 
     @property
     def username(self):
