@@ -298,9 +298,9 @@ class IPAddress:
         self.all_users = users
         self.access_data = access_data
         self.provider = provider
-        self.ip_address = access_data["last_used_ip"]
-        self.last_used_at = access_data["last_used_at"]
-        self.prev_used_at = access_data["prev_used_at"]
+        self.ip_address = access_data.get("last_used_ip")
+        self.last_used_at = access_data.get("last_used_at")
+        self.prev_used_at = access_data.get("prev_used_at")
         self.user_id = access_data.get("user_id")
         self.hostname = None
         self.city = None
