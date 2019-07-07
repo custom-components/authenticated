@@ -4,9 +4,11 @@ about successfull logins to Home Assistant.
 For more details about this component, please refer to the documentation at
 https://github.com/custom-components/authenticated
 """
+from datetime import datetime
 import json
 import logging
 import os
+from ipaddress import ip_address as ValidateIP
 import socket
 from datetime import timedelta
 import requests
@@ -92,13 +94,19 @@ class Authenticated(Entity):
             _LOGGER.debug('File has not been created, no data pressent.')
 
         for access in tokens:
-            if access["last_used_ip"] in self.exclude:
+            accessdata = tokens[access]
+            if access in self.exclude:
                 continue
 
-            if access["last_used_ip"] in self.stored:
-                store = self.stored[access["last_used_ip"]]
+            try:
+                ValidateIP(access)
+            except ValueError:
+                continue
+
+            if access in self.stored:
+                store = self.stored[access]
                 access_data = {}
-                access_data["last_used_ip"] = access["last_used_ip"]
+                access_data["last_used_ip"] = access
                 access_data["user_id"] = store.get("user_id")
 
                 if store.get("last_used_at") is not None:
@@ -118,42 +126,55 @@ class Authenticated(Entity):
 
             else:
                 access_data = {
-                    "last_used_ip": access["last_used_ip"],
-                    "user_id": access["user_id"],
-                    "last_used_at": access["last_used_at"],
+                    "last_used_ip": access,
+                    "user_id": accessdata["user_id"],
+                    "last_used_at": accessdata["last_used_at"],
                     "prev_used_at": None
                 }
                 new = True
-            self.hass.data[PLATFORM_NAME][access["last_used_ip"]] = IPAddress(access_data, users, self.provider, new)
+            self.hass.data[PLATFORM_NAME][access] = IPAddress(access_data, users, self.provider, new)
+        self.write_to_file()
 
     def update(self):
         """Method to update sensor value"""
         updated = False
         users, tokens = load_authentications(self.hass.config.path(".storage/auth"))
         for access in tokens:
-            if access["last_used_ip"] is None:
+            try:
+                ValidateIP(access)
+            except ValueError:
                 continue
-            if access["last_used_ip"] in self.hass.data[PLATFORM_NAME]:
-                ipaddress = self.hass.data[PLATFORM_NAME][access["last_used_ip"]]
-                if access["last_used_at"] == ipaddress.last_used_at:
-                    continue
-                elif access["last_used_at"] > ipaddress.last_used_at:
-                    updated = True
-                    _LOGGER.info("New login from %s", access["last_used_ip"])
-                    ipaddress.prev_used_at = ipaddress.last_used_at
-                    ipaddress.new_ip = False
-                    ipaddress.last_used_at = access["last_used_at"]
-                    ipaddress.lookup()
+
+            if access in self.hass.data[PLATFORM_NAME]:
+                ipaddress = self.hass.data[PLATFORM_NAME][access]
+
+                try:
+                    new = datetime.strptime(access["last_used_at"][:19], "%Y-%m-%dT%H:%M")
+                    stored = datetime.strptime(ipaddress.last_used_at[:19], "%Y-%m-%dT%H:%M")
+                    if new == stored:
+                        continue
+                    elif new > stored:
+                        updated = True
+                        _LOGGER.info("New successfull login from known IP (%s)", access)
+                        ipaddress.prev_used_at = ipaddress.last_used_at
+                        ipaddress.last_used_at = access["last_used_at"]
+                        ipaddress.lookup()
+                except Exception:  # pylint: disable=broad-except
+                    pass
             else:
                 updated = True
-                _LOGGER.info('Found new IP %s', access["last_used_ip"])
-                ipaddress = IPAddress(access, users, self.provider)
+                _LOGGER.warning("New successfull login from unknown IP (%s)", access)
+                ipaddress = IPAddress(tokens[access], users, self.provider)
                 ipaddress.lookup()
-                if self.notify:
-                    if ipaddress.new_ip:
+                if ipaddress.new_ip:
+                    _LOGGER.warning("NEW")
+                    if self.notify:
                         ipaddress.notify(self.hass)
+                    ipaddress.new_ip = False
 
-        self.last_ip = self.hass.data[PLATFORM_NAME][tokens[0]["last_used_ip"]]
+        for ipaddr in sorted(tokens,key=lambda x:tokens[x]['last_used_at'], reverse=True):
+            self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
+            break
         self._state = self.last_ip.ip_address
         if updated:
             self.write_to_file()
@@ -215,53 +236,29 @@ def get_outfile_content(file):
     with open(file) as out_file:
         content = yaml.load(out_file)
     out_file.close()
-    return content
+
+    if isinstance(content, dict):
+        return content
+    return {}
 
 def get_geo_data(ip_address, provider):
     """Get geo data for an IP"""
     result = {"result": False, "data": "none"}
-    if provider == 'ipapi':
-        api = 'https://ipapi.co/' + ip_address + '/json'
-        try:
-            data = requests.get(api, timeout=5).json()
-            if 'reserved' in str(data):
-                result = {"result": False, "data": "none"}
-            else:
-                result = {"result": True, "data": {
-                    'country_name': data['country_name'],
-                    'region': data['region'],
-                    'city': data['city']
-                }}
-        except Exception:
-            result = {"result": False, "data": "none"}
-    elif provider == 'extreme':
-        api = 'https://extreme-ip-lookup.com/json/' + ip_address
-        try:
-            data = requests.get(api, timeout=5).json()
-            if 'Private' in data['org']:
-                result = {"result": False, "data": "none"}
-            else:
-                result = {"result": True, "data": {
-                    'country_name': data['country'],
-                    'region': data['region'],
-                    'city': data['city']
-                }}
-        except Exception:
-            result = {"result": False, "data": "none"}
-    elif provider == 'ipvigilante':
-        api = 'https://ipvigilante.com/json/' + ip_address
-        try:
-            data = requests.get(api, timeout=5).json()
-            if data['status'] != 'success':
-                result = {"result": False, "data": "none"}
-            else:
-                result = {"result": True, "data": {
-                    'country_name': data['data']['country_name'],
-                    'region': data['data']['subdivision_1_name'],
-                    'city': data['data']['city_name']
-                }}
-        except Exception:
-            result = {"result": False, "data": "none"}
+    providers = {
+        "ipapi": "IPApi",
+        "extreme": "ExtremeIPLookup",
+        "ipvigilante": "IPVigilante"
+    }
+    geo_data = globals()[providers[provider]](ip_address)
+    geo_data.update_geo_info()
+
+    if geo_data.computed_result is not None:
+        _LOGGER.critical(geo_data.computed_result)
+        result = {
+            "result": True,
+            "data": geo_data.computed_result
+        }
+
     return result
 
 
@@ -288,8 +285,19 @@ def load_authentications(authfile):
         users[user["id"]] = user["name"]
 
     tokens = auth["data"]["refresh_tokens"]
+    tokens_cleaned = {}
 
-    return users, sorted(tokens, key=lambda i: i['last_used_at'], reverse=True)
+    for token in tokens:
+        if token["last_used_ip"] in tokens_cleaned:
+            if token["last_used_ip"] > tokens_cleaned[token["last_used_ip"]]["last_used_at"]:
+                tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
+                tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+        else:
+            tokens_cleaned[token["last_used_ip"]] = {}
+            tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
+            tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+
+    return users, tokens_cleaned
 
 
 class IPAddress:
@@ -332,3 +340,89 @@ class IPAddress:
         notify('{} ({}, {}, {})'.format(
             self.ip_address, str(self.country), str(self.region), str(self.city)),
                'New successful login from')
+
+
+class GeoProvider:
+    """GeoProvider class."""
+
+    url = None
+
+    def __init__(self, ipaddr):
+        """Initialize."""
+        self.result = {}
+        self.ipaddr = ipaddr
+
+    @property
+    def country(self):
+        """Return country name or None."""
+        if self.result:
+            if "country_name" in self.result:
+                return self.result["country_name"]
+            elif "country" in self.result:
+                return self.result["country"]
+        return None
+
+    @property
+    def region(self):
+        """Return region name or None."""
+        if self.result:
+            if "subdivision_1_name" in self.result:
+                return self.result["subdivision_1_name"]
+            elif "region" in self.result:
+                return self.result["region"]
+        return None
+
+    @property
+    def city(self):
+        """Return city name or None."""
+        if self.result:
+            if "city_name" in self.result:
+                return self.result["city_name"]
+            elif "city" in self.result:
+                return self.result["city"]
+        return None
+
+    @property
+    def computed_result(self):
+        """Return the computed result."""
+        if self.result is not None:
+            return {
+                "country": self.country,
+                "region": self.region,
+                "city": self.city,
+            }
+        return None
+
+    def update_geo_info(self):
+        """Update Geo Information."""
+        self.result = {}
+        try:
+            api = self.url.format(self.ipaddr)
+            data = requests.get(api, timeout=5).json()
+            if 'reserved' in str(data):
+                return
+            elif data.get('status') != 'success':
+                return
+            elif 'Private' in data.get('org'):
+                return
+
+            if data.get('data') is not None:
+                data = data["data"]
+            self.result = data
+        except Exception:  # pylint: disable=broad-except
+            return
+
+
+class IPApi(GeoProvider):
+    """IPApi class."""
+    url = "https://ipapi.co/{}/json"
+
+
+class ExtremeIPLookup(GeoProvider):
+    """IPApi class."""
+    url = "https://extreme-ip-lookup.com/json/{}"
+
+
+class IPVigilante(GeoProvider):
+    """IPVigilante class."""
+    url = "https://ipvigilante.com/json/{}"
