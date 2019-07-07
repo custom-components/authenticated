@@ -4,13 +4,12 @@ about successfull logins to Home Assistant.
 For more details about this component, please refer to the documentation at
 https://github.com/custom-components/authenticated
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 import os
 from ipaddress import ip_address as ValidateIP
 import socket
-from datetime import timedelta
 import requests
 import voluptuous as vol
 import yaml
@@ -132,7 +131,9 @@ class Authenticated(Entity):
                     "prev_used_at": None
                 }
                 new = True
-            self.hass.data[PLATFORM_NAME][access] = IPAddress(access_data, users, self.provider, new)
+            ipaddress =  IPAddress(access_data, users, self.provider, new)
+            ipaddress.lookup()
+            self.hass.data[PLATFORM_NAME][access] = ipaddress
         self.write_to_file()
 
     def update(self):
@@ -158,7 +159,6 @@ class Authenticated(Entity):
                         _LOGGER.info("New successfull login from known IP (%s)", access)
                         ipaddress.prev_used_at = ipaddress.last_used_at
                         ipaddress.last_used_at = access["last_used_at"]
-                        ipaddress.lookup()
                 except Exception:  # pylint: disable=broad-except
                     pass
             else:
@@ -167,10 +167,10 @@ class Authenticated(Entity):
                 ipaddress = IPAddress(tokens[access], users, self.provider)
                 ipaddress.lookup()
                 if ipaddress.new_ip:
-                    _LOGGER.warning("NEW")
                     if self.notify:
                         ipaddress.notify(self.hass)
                     ipaddress.new_ip = False
+                self.hass.data[PLATFORM_NAME][access] = ipaddress
 
         for ipaddr in sorted(tokens,key=lambda x:tokens[x]['last_used_at'], reverse=True):
             self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
@@ -253,7 +253,6 @@ def get_geo_data(ip_address, provider):
     geo_data.update_geo_info()
 
     if geo_data.computed_result is not None:
-        _LOGGER.critical(geo_data.computed_result)
         result = {
             "result": True,
             "data": geo_data.computed_result
@@ -330,7 +329,7 @@ class IPAddress:
         self.hostname = get_hostname(self.ip_address)
         geo = get_geo_data(self.ip_address, self.provider)
         if geo["result"]:
-            self.country = geo.get("data", {}).get("country_name")
+            self.country = geo.get("data", {}).get("country")
             self.region = geo.get("data", {}).get("region")
             self.city = geo.get("data", {}).get("city")
 
@@ -399,6 +398,7 @@ class GeoProvider:
         try:
             api = self.url.format(self.ipaddr)
             data = requests.get(api, timeout=5).json()
+
             if 'reserved' in str(data):
                 return
             elif data.get('status') != 'success':
