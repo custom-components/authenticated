@@ -121,7 +121,6 @@ class Authenticated(Entity):
                     access_data["prev_used_at"] = store["previous_authenticated_time"]
                 else:
                     access_data["prev_used_at"] = None
-                new = False
 
             else:
                 access_data = {
@@ -130,8 +129,7 @@ class Authenticated(Entity):
                     "last_used_at": accessdata["last_used_at"],
                     "prev_used_at": None
                 }
-                new = True
-            ipaddress =  IPAddress(access_data, users, self.provider, new)
+            ipaddress =  IPAddress(access_data, users, self.provider, False)
             ipaddress.lookup()
             self.hass.data[PLATFORM_NAME][access] = ipaddress
         self.write_to_file()
@@ -141,6 +139,7 @@ class Authenticated(Entity):
         updated = False
         users, tokens = load_authentications(self.hass.config.path(".storage/auth"))
         for access in tokens:
+            accessdata = tokens[access]
             try:
                 ValidateIP(access)
             except ValueError:
@@ -164,13 +163,20 @@ class Authenticated(Entity):
             else:
                 updated = True
                 _LOGGER.warning("New successfull login from unknown IP (%s)", access)
-                ipaddress = IPAddress(tokens[access], users, self.provider)
+                access_data = {
+                    "last_used_ip": access,
+                    "user_id": accessdata["user_id"],
+                    "last_used_at": accessdata["last_used_at"],
+                    "prev_used_at": None
+                }
+                ipaddress = IPAddress(access_data, users, self.provider)
                 ipaddress.lookup()
                 if ipaddress.new_ip:
                     if self.notify:
                         ipaddress.notify(self.hass)
                     ipaddress.new_ip = False
-                self.hass.data[PLATFORM_NAME][access] = ipaddress
+
+            self.hass.data[PLATFORM_NAME][access] = ipaddress
 
         for ipaddr in sorted(tokens,key=lambda x:tokens[x]['last_used_at'], reverse=True):
             self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
@@ -287,14 +293,17 @@ def load_authentications(authfile):
     tokens_cleaned = {}
 
     for token in tokens:
-        if token["last_used_ip"] in tokens_cleaned:
-            if token["last_used_ip"] > tokens_cleaned[token["last_used_ip"]]["last_used_at"]:
+        try:
+            if token["last_used_ip"] in tokens_cleaned:
+                if token["last_used_at"] > tokens_cleaned[token["last_used_ip"]]["last_used_at"]:
+                    tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
+                    tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+            else:
+                tokens_cleaned[token["last_used_ip"]] = {}
                 tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
                 tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
-        else:
-            tokens_cleaned[token["last_used_ip"]] = {}
-            tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
-            tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+        except Exception:  # Gotta Catch 'Em All
+            pass
 
     return users, tokens_cleaned
 
@@ -336,9 +345,30 @@ class IPAddress:
     def notify(self, hass):
         """Create persistant notification."""
         notify = hass.components.persistent_notification.create
-        notify('{} ({}, {}, {})'.format(
-            self.ip_address, str(self.country), str(self.region), str(self.city)),
-               'New successful login from')
+        if self.country is not None:
+            country = "**Country:**   {}".format(self.country)
+        else:
+            country = ""
+        if self.region is not None:
+            region = "**Region:**   {}".format(self.region)
+        else:
+            region = ""
+        if self.city is not None:
+            city = "**City:**   {}".format(self.city)
+        else:
+            city = ""
+        if self.last_used_at is not None:
+            last_used_at = "**Login time:**   {}".format(self.last_used_at[:19])
+        else:
+            last_used_at = ""
+        message = """
+        **IP Address:**   {}
+        {}
+        {}
+        {}
+        {}
+        """.format(self.ip_address, country, region, city, last_used_at)
+        notify(message, title='New successful login', notification_id=self.ip_address)
 
 
 class GeoProvider:
