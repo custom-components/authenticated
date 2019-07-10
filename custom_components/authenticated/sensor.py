@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import json
 import logging
 import os
-from ipaddress import ip_address as ValidateIP
+from ipaddress import ip_address as ValidateIP, ip_network
 import socket
 import requests
 import voluptuous as vol
@@ -100,8 +100,9 @@ class AuthenticatedSensor(Entity):
             _LOGGER.debug('File has not been created, no data pressent.')
 
         for access in tokens:
-            if access in self.exclude:
-                continue
+            for excludeaddress in self.exclude: 
+                if ValidateIP(access) in ip_network(excludeaddress, False):
+                    continue
 
             try:
                 ValidateIP(access)
