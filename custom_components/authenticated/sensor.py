@@ -69,7 +69,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     exclude = config.get(CONF_EXCLUDE)
     hass.data[PLATFORM_NAME] = {}
 
-    if not load_authentications(hass.config.path(".storage/auth")):
+    if not load_authentications(hass.config.path(".storage/auth"), exclude):
         return False
 
     out = str(hass.config.path(OUTFILE))
@@ -104,7 +104,9 @@ class AuthenticatedSensor(Entity):
 
     def initial_run(self):
         """Run this at startup to initialize the platform data."""
-        users, tokens = load_authentications(self.hass.config.path(".storage/auth"))
+        users, tokens = load_authentications(
+            self.hass.config.path(".storage/auth"), self.exclude
+        )
 
         if os.path.isfile(self.out):
             self.stored = get_outfile_content(self.out)
@@ -112,8 +114,6 @@ class AuthenticatedSensor(Entity):
             _LOGGER.debug("File has not been created, no data pressent.")
 
         for access in tokens:
-            if access in self.exclude:
-                continue
 
             try:
                 ValidateIP(access)
@@ -166,7 +166,9 @@ class AuthenticatedSensor(Entity):
     def update(self):
         """Method to update sensor value"""
         updated = False
-        users, tokens = load_authentications(self.hass.config.path(".storage/auth"))
+        users, tokens = load_authentications(
+            self.hass.config.path(".storage/auth"), self.exclude
+        )
         for access in tokens:
             try:
                 ValidateIP(access)
@@ -210,7 +212,8 @@ class AuthenticatedSensor(Entity):
         ):
             self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
             break
-        self._state = self.last_ip.ip_address
+        if self.last_ip is not None:
+            self._state = self.last_ip.ip_address
         if updated:
             self.write_to_file()
 
@@ -300,7 +303,7 @@ def get_hostname(ip_address):
     return hostname
 
 
-def load_authentications(authfile):
+def load_authentications(authfile, exclude):
     """Load info from auth file."""
     if not os.path.exists(authfile):
         _LOGGER.critical("File is missing %s", authfile)
@@ -317,6 +320,8 @@ def load_authentications(authfile):
 
     for token in tokens:
         try:
+            if token["last_used_ip"] in exclude:
+                continue
             if token["last_used_ip"] in tokens_cleaned:
                 if (
                     token["last_used_at"]
