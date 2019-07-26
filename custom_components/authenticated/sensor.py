@@ -20,36 +20,47 @@ from homeassistant.helpers.entity import Entity
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_NOTIFY = 'enable_notification'
-CONF_EXCLUDE = 'exclude'
-CONF_PROVIDER = 'provider'
-CONF_LOG_LOCATION = 'log_location'
+CONF_NOTIFY = "enable_notification"
+CONF_EXCLUDE = "exclude"
+CONF_PROVIDER = "provider"
+CONF_LOG_LOCATION = "log_location"
 
-ATTR_HOSTNAME = 'hostname'
-ATTR_COUNTRY = 'country'
-ATTR_REGION = 'region'
-ATTR_CITY = 'city'
-ATTR_NEW_IP = 'new_ip'
-ATTR_LAST_AUTHENTICATE_TIME = 'last_authenticated_time'
-ATTR_PREVIOUS_AUTHENTICATE_TIME = 'previous_authenticated_time'
+ATTR_HOSTNAME = "hostname"
+ATTR_COUNTRY = "country"
+ATTR_REGION = "region"
+ATTR_CITY = "city"
+ATTR_NEW_IP = "new_ip"
+ATTR_LAST_AUTHENTICATE_TIME = "last_authenticated_time"
+ATTR_PREVIOUS_AUTHENTICATE_TIME = "previous_authenticated_time"
 ATTR_USER = "username"
 
 SCAN_INTERVAL = timedelta(minutes=1)
 
-PLATFORM_NAME = 'authenticated'
+PLATFORM_NAME = "authenticated"
 
-LOGFILE = 'home-assistant.log'
-OUTFILE = '.ip_authenticated.yaml'
+LOGFILE = "home-assistant.log"
+OUTFILE = ".ip_authenticated.yaml"
 
-PROVIDERS = ['ipapi', 'extreme', 'ipvigilante']
+PROVIDERS = ["ipapi", "extreme", "ipvigilante"]
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_PROVIDER, default='ipapi'): vol.In(PROVIDERS),
-    vol.Optional(CONF_LOG_LOCATION, default=''): cv.string,
-    vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
-    vol.Optional(CONF_EXCLUDE, default='None'):
-        vol.All(cv.ensure_list, [cv.string]),
-    })
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Optional(CONF_PROVIDER, default="ipapi"): vol.In(PROVIDERS),
+        vol.Optional(CONF_LOG_LOCATION, default=""): cv.string,
+        vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
+        vol.Optional(CONF_EXCLUDE, default="None"): vol.All(
+            cv.ensure_list, [cv.string]
+        ),
+    }
+)
+
+PROVIDERS = {}
+
+
+def register_provider(classname):
+    """Decorator used to register providers."""
+    PROVIDERS[classname.name] = classname
+    return classname
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
@@ -58,7 +69,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     exclude = config.get(CONF_EXCLUDE)
     hass.data[PLATFORM_NAME] = {}
 
-    if not load_authentications(hass.config.path(".storage/auth")):
+    if not load_authentications(hass.config.path(".storage/auth"), exclude):
         return False
 
     out = str(hass.config.path(OUTFILE))
@@ -71,6 +82,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 class AuthenticatedBaseException(Exception):
     """Base exception for Authenticated."""
+
 
 class AuthenticatedRateLimitException(AuthenticatedBaseException):
     """Ratelimit exception."""
@@ -92,17 +104,16 @@ class AuthenticatedSensor(Entity):
 
     def initial_run(self):
         """Run this at startup to initialize the platform data."""
-        users, tokens = load_authentications(self.hass.config.path(".storage/auth"))
+        users, tokens = load_authentications(
+            self.hass.config.path(".storage/auth"), self.exclude
+        )
 
         if os.path.isfile(self.out):
             self.stored = get_outfile_content(self.out)
         else:
-            _LOGGER.debug('File has not been created, no data pressent.')
+            _LOGGER.debug("File has not been created, no data pressent.")
 
         for access in tokens:
-            for excludeaddress in self.exclude: 
-                if ValidateIP(access) in ip_network(excludeaddress, False):
-                    continue
 
             try:
                 ValidateIP(access)
@@ -134,11 +145,17 @@ class AuthenticatedSensor(Entity):
                     accessdata.last_access = store.last_access
                 elif store.attributes.get("last_authenticated") is not None:
                     accessdata.last_access = store.attributes["last_authenticated"]
+                elif store.attributes.get("last_used_at") is not None:
+                    accessdata.last_access = store.attributes["last_used_at"]
 
                 if store.prev_access is not None:
                     accessdata.prev_access = store.prev_access
                 elif store.attributes.get("previous_authenticated_time") is not None:
-                    accessdata.prev_access = store.attributes["last_authenticated"]
+                    accessdata.prev_access = store.attributes[
+                        "previous_authenticated_time"
+                    ]
+                elif store.attributes.get("prev_used_at") is not None:
+                    accessdata.prev_access = store.attributes["prev_used_at"]
 
             ipaddress = IPData(accessdata, users, self.provider, False)
             if accessdata.ipaddr not in self.stored:
@@ -149,7 +166,9 @@ class AuthenticatedSensor(Entity):
     def update(self):
         """Method to update sensor value"""
         updated = False
-        users, tokens = load_authentications(self.hass.config.path(".storage/auth"))
+        users, tokens = load_authentications(
+            self.hass.config.path(".storage/auth"), self.exclude
+        )
         for access in tokens:
             try:
                 ValidateIP(access)
@@ -160,15 +179,16 @@ class AuthenticatedSensor(Entity):
                 ipaddress = self.hass.data[PLATFORM_NAME][access]
 
                 try:
-                    new = datetime.strptime(access["last_used_at"][:19], "%Y-%m-%dT%H:%M")
-                    stored = datetime.strptime(ipaddress.last_used_at[:19], "%Y-%m-%dT%H:%M")
+                    new = humanize_time(tokens[access]["last_used_at"])
+                    stored = humanize_time(ipaddress.last_used_at)
+
                     if new == stored:
                         continue
                     elif new > stored:
                         updated = True
                         _LOGGER.info("New successfull login from known IP (%s)", access)
                         ipaddress.prev_used_at = ipaddress.last_used_at
-                        ipaddress.last_used_at = access["last_used_at"]
+                        ipaddress.last_used_at = tokens[access]["last_used_at"]
                 except Exception:  # pylint: disable=broad-except
                     pass
             else:
@@ -187,17 +207,20 @@ class AuthenticatedSensor(Entity):
 
             self.hass.data[PLATFORM_NAME][access] = ipaddress
 
-        for ipaddr in sorted(tokens, key=lambda x:tokens[x]['last_used_at'], reverse=True):
+        for ipaddr in sorted(
+            tokens, key=lambda x: tokens[x]["last_used_at"], reverse=True
+        ):
             self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
             break
-        self._state = self.last_ip.ip_address
+        if self.last_ip is not None:
+            self._state = self.last_ip.ip_address
         if updated:
             self.write_to_file()
 
     @property
     def name(self):
         """Return the name of the sensor."""
-        return 'Last successful authentication'
+        return "Last successful authentication"
 
     @property
     def state(self):
@@ -207,7 +230,7 @@ class AuthenticatedSensor(Entity):
     @property
     def icon(self):
         """Return the icon of the sensor."""
-        return 'mdi:lock-alert'
+        return "mdi:lock-alert"
 
     @property
     def device_state_attributes(self):
@@ -220,7 +243,7 @@ class AuthenticatedSensor(Entity):
             ATTR_REGION: self.last_ip.region,
             ATTR_CITY: self.last_ip.city,
             ATTR_USER: self.last_ip.username,
-            ATTR_NEW_IP:self.last_ip.new_ip,
+            ATTR_NEW_IP: self.last_ip.new_ip,
             ATTR_LAST_AUTHENTICATE_TIME: self.last_ip.last_used_at,
             ATTR_PREVIOUS_AUTHENTICATE_TIME: self.last_ip.prev_used_at,
         }
@@ -241,38 +264,31 @@ class AuthenticatedSensor(Entity):
                 "country": known.country,
                 "hostname": known.hostname,
                 "region": known.region,
-                "city": known.city
+                "city": known.city,
             }
-        with open(self.out, 'w') as out_file:
+        with open(self.out, "w") as out_file:
             yaml.dump(info, out_file, default_flow_style=False, explicit_start=True)
 
 
 def get_outfile_content(file):
     """Get the content of the outfile"""
     with open(file) as out_file:
-        content = yaml.load(out_file)
+        content = yaml.load(out_file, Loader=yaml.FullLoader)
     out_file.close()
 
     if isinstance(content, dict):
         return content
     return {}
 
+
 def get_geo_data(ip_address, provider):
     """Get geo data for an IP"""
     result = {"result": False, "data": "none"}
-    providers = {
-        "ipapi": "IPApi",
-        "extreme": "ExtremeIPLookup",
-        "ipvigilante": "IPVigilante"
-    }
-    geo_data = globals()[providers[provider]](ip_address)
+    geo_data = PROVIDERS[provider](ip_address)
     geo_data.update_geo_info()
 
     if geo_data.computed_result is not None:
-        result = {
-            "result": True,
-            "data": geo_data.computed_result
-        }
+        result = {"result": True, "data": geo_data.computed_result}
 
     return result
 
@@ -287,7 +303,7 @@ def get_hostname(ip_address):
     return hostname
 
 
-def load_authentications(authfile):
+def load_authentications(authfile, exclude):
     """Load info from auth file."""
     if not os.path.exists(authfile):
         _LOGGER.critical("File is missing %s", authfile)
@@ -304,14 +320,25 @@ def load_authentications(authfile):
 
     for token in tokens:
         try:
-            if token["last_used_ip"] in tokens_cleaned:
-                if token["last_used_at"] > tokens_cleaned[token["last_used_ip"]]["last_used_at"]:
-                    tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
-                    tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+            for excludeaddress in exclude:
+                if ValidateIP(token["last_used_ip"]) in ip_network(excludeaddress, False):
+                    break
             else:
-                tokens_cleaned[token["last_used_ip"]] = {}
-                tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token["last_used_at"]
-                tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+                if token["last_used_ip"] in tokens_cleaned:
+                    if (
+                        token["last_used_at"]
+                        > tokens_cleaned[token["last_used_ip"]]["last_used_at"]
+                    ):
+                        tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
+                            "last_used_at"
+                        ]
+                        tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+                else:
+                    tokens_cleaned[token["last_used_ip"]] = {}
+                    tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
+                        "last_used_at"
+                    ]
+                    tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
         except Exception:  # Gotta Catch 'Em All
             pass
 
@@ -336,6 +363,7 @@ class AuthenticatedData:
 
 class IPData:
     """IP Address class."""
+
     def __init__(self, access_data, users, provider, new=True):
         self.all_users = users
         self.provider = provider
@@ -392,8 +420,15 @@ class IPData:
         {}
         {}
         {}
-        """.format(self.ip_address, self.username, country, region, city, last_used_at.replace("T", " "))
-        notify(message, title='New successful login', notification_id=self.ip_address)
+        """.format(
+            self.ip_address,
+            self.username,
+            country,
+            region,
+            city,
+            last_used_at.replace("T", " "),
+        )
+        notify(message, title="New successful login", notification_id=self.ip_address)
 
 
 class GeoProvider:
@@ -434,11 +469,7 @@ class GeoProvider:
     def computed_result(self):
         """Return the computed result."""
         if self.result is not None:
-            return {
-                "country": self.country,
-                "region": self.region,
-                "city": self.city,
-            }
+            return {"country": self.country, "region": self.region, "city": self.city}
         return None
 
     def update_geo_info(self):
@@ -446,15 +477,14 @@ class GeoProvider:
         self.result = {}
         try:
             api = self.url.format(self.ipaddr)
-            header = {
-                "user-agent": "Home Assistant/Python"
-            }
+            header = {"user-agent": "Home Assistant/Python"}
             data = requests.get(api, headers=header, timeout=5).json()
 
             if data.get("error"):
                 if data.get("reason") == "RateLimited":
                     raise AuthenticatedRateLimitException(
-                        "RatelimitError, try a different provider.")
+                        "RatelimitError, try a different provider."
+                    )
 
             elif data.get("status", "success") == "error":
                 return
@@ -464,7 +494,10 @@ class GeoProvider:
 
             elif data.get("status", "success") == "fail":
                 raise AuthenticatedBaseException(
-                    "[{}] - {}".format(self.ipaddr, data.get("message", "Unkown error.")))
+                    "[{}] - {}".format(
+                        self.ipaddr, data.get("message", "Unkown error.")
+                    )
+                )
 
             self.result = data
             self.parse_data()
@@ -479,9 +512,13 @@ class GeoProvider:
         """Parse data from geoprovider."""
         self.result = self.result
 
+
+@register_provider
 class IPApi(GeoProvider):
     """IPApi class."""
+
     url = "https://ipapi.co/{}/json"
+    name = "ipapi"
 
     @property
     def country(self):
@@ -491,14 +528,21 @@ class IPApi(GeoProvider):
                 return self.result["country_name"]
         return None
 
+
+@register_provider
 class ExtremeIPLookup(GeoProvider):
     """IPApi class."""
+
     url = "https://extreme-ip-lookup.com/json/{}"
+    name = "extreme"
 
 
+@register_provider
 class IPVigilante(GeoProvider):
     """IPVigilante class."""
+
     url = "https://ipvigilante.com/json/{}"
+    name = "ipvigilante"
 
     def parse_data(self):
         """Parse data from geoprovider."""
@@ -527,3 +571,8 @@ class IPVigilante(GeoProvider):
             if self.result.get("city_name") is not None:
                 return self.result["city_name"]
         return None
+
+
+def humanize_time(timestring):
+    """Convert time."""
+    return datetime.strptime(timestring[:19], "%Y-%m-%dT%H:%M:%S")
