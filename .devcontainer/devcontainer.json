@@ -9,6 +9,8 @@
 	],
 	"extensions": [
 		"ms-python.python"
+		"github.vscode-pull-request-github",
+		"tabnine.tabnine-vscode"
 	],
 	"settings": {
 		"python.pythonPath": "/usr/local/bin/python",
