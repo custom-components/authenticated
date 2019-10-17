@@ -1,6 +1,6 @@
 """
 A platform which allows you to get information
-about successfull logins to Home Assistant.
+about successful logins to Home Assistant.
 For more details about this component, please refer to the documentation at
 https://github.com/custom-components/authenticated
 """
@@ -184,14 +184,14 @@ class AuthenticatedSensor(Entity):
                         continue
                     elif new > stored:
                         updated = True
-                        _LOGGER.info("New successfull login from known IP (%s)", access)
+                        _LOGGER.info("New successful login from known IP (%s)", access)
                         ipaddress.prev_used_at = ipaddress.last_used_at
                         ipaddress.last_used_at = tokens[access]["last_used_at"]
                 except Exception:  # pylint: disable=broad-except
                     pass
             else:
                 updated = True
-                _LOGGER.warning("New successfull login from unknown IP (%s)", access)
+                _LOGGER.warning("New successful login from unknown IP (%s)", access)
                 accessdata = AuthenticatedData(access, tokens[access])
                 ipaddress = IPData(accessdata, users, self.provider)
                 ipaddress.lookup()
