@@ -325,7 +325,7 @@ def load_authentications(authfile, exclude):
                 if ValidateIP(token["last_used_ip"]) in ip_network(
                     excludeaddress, False
                 ):
-                    continue
+                    raise Exception('IP in excluded address configuration')
             if token.get("last_used_at") is None:
                 continue
             if token["last_used_ip"] in tokens_cleaned:
@@ -350,7 +350,7 @@ def load_authentications(authfile, exclude):
 
 
 class AuthenticatedData:
-    """Data class for autenticated values."""
+    """Data class for authenticated values."""
 
     def __init__(self, ipaddr, attributes):
         """Initialize."""
@@ -499,7 +499,7 @@ class GeoProvider:
             elif data.get("status", "success") == "fail":
                 raise AuthenticatedBaseException(
                     "[{}] - {}".format(
-                        self.ipaddr, data.get("message", "Unkown error.")
+                        self.ipaddr, data.get("message", "Unknown error.")
                     )
                 )
 
