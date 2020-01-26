@@ -2,8 +2,7 @@
 
 A platform which allows you to get information successful logins to Home Assistant.
 
-To get started put `/custom_components/authenticated/sensor.py` here:  
-`<config directory>/custom_components/authenticated/sensor.py`  
+To get started you should know what to get from this repo, or use [HACS](https://hacs.xyz/).
 
 **Example configuration.yaml:**
 
