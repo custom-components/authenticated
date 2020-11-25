@@ -18,6 +18,7 @@ sensor:
 | **platform** | yes | | The sensor platform name.
 | **enable_notification** | no | `true` | Turn on/off `persistant_notifications` when a new IP is detected, can be `true`/`false`.
 | **exclude** | no | | A list of IP addresses you want to exclude.
+| **exclude_clients** | no | | A list of client_ids you want to exclude
 | **provider** | no | 'ipapi' | The provider you want to use for GEO Lookup, 'ipapi', 'extreme', 'ipvigilante'.
 | **log_location** | no | | Full path to the logfile.
 
