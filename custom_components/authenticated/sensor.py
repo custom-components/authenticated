@@ -157,8 +157,6 @@ class AuthenticatedSensor(Entity):
         users, tokens = load_authentications(
             self.hass.config.path(".storage/auth"), self.exclude
         )
-        _LOGGER.debug("Users %s", users)
-        _LOGGER.debug("Access %s", tokens)
         for access in tokens:
             try:
                 ValidateIP(access)
