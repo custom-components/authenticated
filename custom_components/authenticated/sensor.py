@@ -18,7 +18,15 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
 from .providers import PROVIDERS
-from .const import OUTFILE, CONF_NOTIFY, CONF_EXCLUDE, CONF_EXCLUDE_CLIENTS, CONF_PROVIDER, CONF_LOG_LOCATION, STARTUP
+from .const import (
+    OUTFILE,
+    CONF_NOTIFY,
+    CONF_EXCLUDE,
+    CONF_EXCLUDE_CLIENTS,
+    CONF_PROVIDER,
+    CONF_LOG_LOCATION,
+    STARTUP,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +50,9 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_LOG_LOCATION, default=""): cv.string,
         vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
         vol.Optional(CONF_EXCLUDE, default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional(CONF_EXCLUDE_CLIENTS, default=[]): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(CONF_EXCLUDE_CLIENTS, default=[]): vol.All(
+            cv.ensure_list, [cv.string]
+        ),
     }
 )
 
@@ -62,12 +72,16 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     exclude_clients = config.get(CONF_EXCLUDE_CLIENTS)
     hass.data[PLATFORM_NAME] = {}
 
-    if not load_authentications(hass.config.path(".storage/auth"), exclude, exclude_clients):
+    if not load_authentications(
+        hass.config.path(".storage/auth"), exclude, exclude_clients
+    ):
         return False
 
     out = str(hass.config.path(OUTFILE))
 
-    sensor = AuthenticatedSensor(hass, notify, out, exclude, exclude_clients, config[CONF_PROVIDER])
+    sensor = AuthenticatedSensor(
+        hass, notify, out, exclude, exclude_clients, config[CONF_PROVIDER]
+    )
     sensor.initial_run()
 
     add_devices([sensor], True)
