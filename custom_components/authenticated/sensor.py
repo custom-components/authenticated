@@ -18,14 +18,9 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
 from .providers import PROVIDERS
+from .const import OUTFILE, CONF_NOTIFY, CONF_EXCLUDE, CONF_EXCLUDE_CLIENTS, CONF_PROVIDER, CONF_LOG_LOCATION, STARTUP
 
 _LOGGER = logging.getLogger(__name__)
-
-CONF_NOTIFY = "enable_notification"
-CONF_EXCLUDE = "exclude"
-CONF_EXCLUDE_CLIENTS = "exclude_clients"
-CONF_PROVIDER = "provider"
-CONF_LOG_LOCATION = "log_location"
 
 ATTR_HOSTNAME = "hostname"
 ATTR_COUNTRY = "country"
@@ -39,10 +34,6 @@ ATTR_USER = "username"
 SCAN_INTERVAL = timedelta(minutes=1)
 
 PLATFORM_NAME = "authenticated"
-
-LOGFILE = "home-assistant.log"
-OUTFILE = ".ip_authenticated.yaml"
-
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_PROVIDER, default="ipapi"): vol.In(
@@ -62,6 +53,9 @@ def humanize_time(timestring):
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
+    # Print startup message
+    _LOGGER.info(STARTUP)
+
     """Create the sensor"""
     notify = config.get(CONF_NOTIFY)
     exclude = config.get(CONF_EXCLUDE)
