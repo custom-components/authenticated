@@ -1,6 +1,6 @@
 {
 	"name": "Custom integration authenticated",
-	"image": "ludeeus/container:integration",
+	"image": "ghcr.io/ludeeus/devcontainer/integration:stable",
 	"context": "..",
 	"appPort": [
 		"9123:8123"
@@ -11,8 +11,8 @@
 		"github.vscode-pull-request-github",
 		"ryanluker.vscode-coverage-gutters",
 		"ms-python.vscode-pylance"
-	  ],
-	  "settings": {
+	],
+	"settings": {
 		"files.eol": "\n",
 		"editor.tabSize": 4,
 		"terminal.integrated.shell.linux": "/bin/bash",
@@ -24,5 +24,5 @@
 		"editor.formatOnSave": true,
 		"editor.formatOnType": true,
 		"files.trimTrailingWhitespace": true
-	  }
+	}
 }
