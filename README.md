@@ -1,3 +1,17 @@
+At this point this integtration is considered deprecated.
+
+Parts of it can probably be added to core by someone, if its usefull.
+
+For general info about securing your instance:
+- https://www.home-assistant.io/docs/authentication/
+- https://www.home-assistant.io/docs/authentication/multi-factor-auth
+- https://www.home-assistant.io/docs/configuration/securing/
+
+
+<details>
+  <summary>old readme</summary>
+  
+  
 # authenticated
 
 A platform which allows you to get information successful logins to Home Assistant.
@@ -53,3 +67,6 @@ logger:
 ***
 
 [buymeacoffee.com](https://www.buymeacoffee.com/ludeeus)
+
+  
+</details>
